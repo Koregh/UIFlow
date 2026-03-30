@@ -1,15 +1,6 @@
---[[
-  ════════════════════════════════════════════════════════════
-  UIFramework — EXAMPLES.lua
-  Demonstrating every system with real-world patterns
-  ════════════════════════════════════════════════════════════
---]]
-
 local UI = require(game.ReplicatedStorage.UIFramework)
 
---  ══════════════════════════════════════════════════════════
---  1. LOGGER — structured, leveled, per-module
---  ══════════════════════════════════════════════════════════
+--  1. LOGGER
 
 -- Root-level log
 UI.Logger.info("Game loaded")
@@ -20,7 +11,7 @@ log.info("Shop opened", { player = "Alex", items = 42 })
 log.warn("Low inventory", { item = "Sword", remaining = 2 })
 
 -- Set global minimum level
-UI.Logger.setLevel(UI.Types.LogLevel.WARN)  -- suppress DEBUG/INFO
+UI.Logger.setLevel(UI.Types.LogLevel.WARN)  
 
 -- Add a custom sink (e.g., send errors to a remote logging endpoint)
 UI.Logger.addSink(function(entry)
@@ -41,9 +32,7 @@ local tracedFn = log.trace_call("initializeInventory", function(playerId)
 end)
 tracedFn("player_123")
 
---  ══════════════════════════════════════════════════════════
---  2. METRICS — counters, gauges, histograms, timers
---  ══════════════════════════════════════════════════════════
+--  2. METRICS
 
 -- Counter: fire-and-forget
 UI.Metrics.inc("shop.item.purchased", 1, "Items purchased in shop")
@@ -90,9 +79,7 @@ if summary then
 	print("p99 shop load:", UI.Metrics.percentile("shop.load.duration_ms", 0.99))
 end
 
---  ══════════════════════════════════════════════════════════
---  3. SIGNAL BUS — decoupled communication
---  ══════════════════════════════════════════════════════════
+--  3. SIGNAL BUS 
 
 -- Subscribe (returns handle with .disconnect())
 local handle = UI.Bus.on("player:levelUp", function(player, newLevel)
@@ -154,9 +141,7 @@ handle.disconnect()
 local info = UI.Bus.getChannelInfo("player:levelUp")
 print("levelUp fired", info.emitCount, "times, subs:", info.activeSubs)
 
---  ══════════════════════════════════════════════════════════
---  4. COMPONENT — full lifecycle with real hooks
---  ══════════════════════════════════════════════════════════
+--  4. COMPONENT 
 
 local myFrame = Instance.new("Frame")  -- normally this comes from the UI hierarchy
 
@@ -236,9 +221,7 @@ end
 -- Full debug report
 UI.Component.report()
 
---  ══════════════════════════════════════════════════════════
---  5. HOOKS STANDALONE (without Component)
---  ══════════════════════════════════════════════════════════
+--  5. HOOKS STANDALONE 
 
 -- useState: get, set, subscribe, destroy
 local getCoins, setCoins, subCoins, destroyCoins = UI.Hooks.useState(0)
@@ -303,9 +286,7 @@ end, 1.0)  -- at most once per second
 local ref = UI.Hooks.useRef(nil)
 ref.current = myFrame  -- assign without triggering renders
 
---  ══════════════════════════════════════════════════════════
---  6. RENDERER — animations, sequences, loops
---  ══════════════════════════════════════════════════════════
+--  6. RENDERER 
 
 -- Simple tween
 local handle = UI.Renderer.animate(myFrame, {
@@ -356,9 +337,7 @@ local loopId = UI.Renderer.loop(myFrame, {
 task.wait(3)
 UI.Renderer.stopLoop(loopId)
 
---  ══════════════════════════════════════════════════════════
---  7. PRESETS — one-liners for common animations
---  ══════════════════════════════════════════════════════════
+--  7. PRESETS 
 
 -- Enter animations
 UI.Presets.bounceIn(myFrame, { duration = 0.45 })
@@ -382,9 +361,7 @@ UI.Renderer.stopLoop(pulseId)
 UI.Renderer.stopLoop(floatId)
 UI.Renderer.stopLoop(spinId)
 
---  ══════════════════════════════════════════════════════════
 --  8. UTILS — formatting and typewriter
---  ══════════════════════════════════════════════════════════
 
 -- Number formatting
 print(UI.Utils.Number.format(1500000, "comma"))      -- "1,500,000"
