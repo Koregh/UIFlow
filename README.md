@@ -1,7 +1,7 @@
 > [!WARNING]
 > This library is in early development and it is not intended to be used for large productions.
 
-# UIFlox
+# UIFlow
 
 [![Roblox](https://img.shields.io/badge/Roblox-Compatible-00A2FF?style=for-the-badge\&logo=roblox)](https://www.roblox.com)
 [![Luau](https://img.shields.io/badge/Luau-Type--safe-00A2FF?style=for-the-badge)](https://luau-lang.org/)
