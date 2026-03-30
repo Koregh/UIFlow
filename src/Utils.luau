@@ -1,31 +1,11 @@
---[[
-  ============================================================
-  UIFramework / utils / Utils.lua
-  ============================================================
-  Pure utility functions. Zero dependencies on framework internals
-  except Logger (for instrumentation). Fully testable in isolation.
-
-  Modules:
-    Utils.Number   — formatNumber (comma, short, currency, percent)
-    Utils.Text     — formatText template interpolation
-    Utils.Typewriter — coroutine-based typewriter with full control
-    Utils.Color    — animated color setter with palette helpers
-    Utils.Debris   — managed instance lifetime
-  ============================================================
---]]
-
-local Logger  = require(script.Parent.logger.Logger)
-local Metrics = require(script.Parent.metrics.Metrics)
+local Logger   = require(script.Parent.Logger)
+local Metrics  = require(script.Parent.Metrics)
 local TweenSvc = game:GetService("TweenService")
 local Debris   = game:GetService("Debris")
 
 local log = Logger.child("Utils")
 
 local Utils = {}
-
---  ═══════════════════════════════════════════
---  NUMBER FORMATTING
---  ═══════════════════════════════════════════
 
 Utils.Number = {}
 
@@ -47,18 +27,6 @@ local function rawComma(n, sep)
 	return (n < 0 and "-" or "") .. res
 end
 
---[[
-  Utils.Number.format(n, style, opts)
-
-  styles: "comma" | "space" | "short" | "compact" | "currency" | "percent" | "ordinal" | "raw"
-
-  opts:
-    decimals    = number   (default depends on style)
-    keepDecimal = boolean  (keep trailing .0)
-    symbol      = string   (currency symbol, default "$")
-    groupSep    = string   (thousands separator, default ",")
-    decimalSep  = string   (decimal separator, default ".")
---]]
 function Utils.Number.format(n, style, opts)
 	opts  = opts  or {}
 	style = style or "comma"
@@ -104,7 +72,7 @@ function Utils.Number.format(n, style, opts)
 		return string.format("%." .. dec .. "f", n) .. "%"
 
 	elseif style == "ordinal" then
-		local i = math.floor(math.abs(n))
+		local i      = math.floor(math.abs(n))
 		local suffix
 		local mod100 = i % 100
 		if mod100 >= 11 and mod100 <= 13 then
@@ -126,34 +94,19 @@ function Utils.Number.format(n, style, opts)
 	return tostring(n)
 end
 
--- Shorthand aliases
-function Utils.Number.comma(n, opts)   return Utils.Number.format(n, "comma",    opts) end
-function Utils.Number.short(n, opts)   return Utils.Number.format(n, "short",    opts) end
-function Utils.Number.compact(n, opts) return Utils.Number.format(n, "compact",  opts) end
-function Utils.Number.percent(n, opts) return Utils.Number.format(n, "percent",  opts) end
-function Utils.Number.ordinal(n)       return Utils.Number.format(n, "ordinal")        end
-
---  ═══════════════════════════════════════════
---  TEXT FORMATTING (template interpolation)
---  ═══════════════════════════════════════════
+function Utils.Number.comma(n, opts)   return Utils.Number.format(n, "comma",   opts) end
+function Utils.Number.short(n, opts)   return Utils.Number.format(n, "short",   opts) end
+function Utils.Number.compact(n, opts) return Utils.Number.format(n, "compact", opts) end
+function Utils.Number.percent(n, opts) return Utils.Number.format(n, "percent", opts) end
+function Utils.Number.ordinal(n)       return Utils.Number.format(n, "ordinal")       end
 
 Utils.Text = {}
 
---[[
-  Utils.Text.format("Hello {name}, you have {coins} coins!", {
-    name  = "Alex",
-    coins = Utils.Number.format(15000, "comma"),
-  })
-  Supports nested access: {player.name} → data.player.name
-  Supports fallback: {missing|default}
---]]
 function Utils.Text.format(template, data)
 	return (template:gsub("{([^}]+)}", function(expr)
-		-- check for fallback syntax: {key|fallback}
 		local key, fallback = expr:match("^([^|]+)|(.*)$")
 		if not key then key = expr end
 
-		-- support dot-path: player.name
 		local parts = {}
 		for p in key:gmatch("[^%.]+") do parts[#parts + 1] = p end
 
@@ -170,49 +123,23 @@ function Utils.Text.format(template, data)
 	end))
 end
 
---- Pluralize: Utils.Text.plural(count, "item", "items") → "1 item" or "3 items"
 function Utils.Text.plural(n, singular, plural_)
 	return tostring(n) .. " " .. (math.abs(n) == 1 and singular or (plural_ or singular .. "s"))
 end
 
---- Truncate with ellipsis.
 function Utils.Text.truncate(s, maxLen, ellipsis)
 	ellipsis = ellipsis or "…"
 	if #s <= maxLen then return s end
 	return s:sub(1, maxLen - #ellipsis) .. ellipsis
 end
 
---  ═══════════════════════════════════════════
---  TYPEWRITER  (coroutine-based, full control)
---  ═══════════════════════════════════════════
-
 Utils.Typewriter = {}
 
-local _typewriters = {}  -- label → handle (one active per label)
+local _typewriters = {}
 
---[[
-  Utils.Typewriter.write(label, text, opts)
-
-  opts = {
-    speed       = 0.05,     seconds per visible character
-    richText    = false,    skip <tag> sequences in timing
-    sound       = Sound?,
-    onChar      = fn(char, visibleIndex),
-    onComplete  = fn(label),
-    signal      = "ui:typeComplete",
-  }
-
-  Returns handle:
-    handle.skip()    → jump to end immediately
-    handle.cancel()  → stop, clear text
-    handle.pause()
-    handle.resume()
-    handle.isDone()  → boolean
---]]
 function Utils.Typewriter.write(label, text, opts)
 	opts = opts or {}
 
-	-- cancel any existing typewriter on this label
 	local existing = _typewriters[label]
 	if existing then
 		existing._active = false
@@ -226,17 +153,16 @@ function Utils.Typewriter.write(label, text, opts)
 	}
 	_typewriters[label] = handle
 
-	handle.skip   = function() handle._skip   = true end
+	handle.skip   = function() handle._skip   = true  end
 	handle.cancel = function() handle._active = false; label.Text = "" end
-	handle.pause  = function() handle._paused = true  end
-	handle.resume = function() handle._paused = false end
-	handle.isDone = function() return handle._done     end
+	handle.pause  = function() handle._paused = true   end
+	handle.resume = function() handle._paused = false  end
+	handle.isDone = function() return handle._done      end
 
 	task.spawn(function()
 		local speed = opts.speed or 0.05
 		label.Text  = ""
 
-		-- parse characters, respecting rich text tags
 		local chars = {}
 		if opts.richText then
 			local i = 1
@@ -261,8 +187,8 @@ function Utils.Typewriter.write(label, text, opts)
 			end
 		end
 
-		local built   = ""
-		local visIdx  = 0
+		local built  = ""
+		local visIdx = 0
 
 		for _, ch in ipairs(chars) do
 			if not handle._active then return end
@@ -274,10 +200,9 @@ function Utils.Typewriter.write(label, text, opts)
 			if ch.visible then
 				visIdx = visIdx + 1
 
-				if opts.sound then pcall(function() opts.sound:Play() end) end
-				if opts.onChar then pcall(opts.onChar, ch.s, visIdx) end
+				if opts.sound  then pcall(function() opts.sound:Play() end) end
+				if opts.onChar then pcall(opts.onChar, ch.s, visIdx)        end
 
-				-- wait, respecting pause and active state
 				local elapsed = 0
 				while elapsed < speed do
 					if not handle._active then return end
@@ -290,24 +215,23 @@ function Utils.Typewriter.write(label, text, opts)
 		end
 
 		if handle._active then
-			label.Text    = text
-			handle._done  = true
+			label.Text   = text
+			handle._done = true
 			if opts.onComplete then pcall(opts.onComplete, label) end
 			if opts.signal then
-				local bus = require(script.Parent.signals.SignalBus)
+				local bus = require(script.Parent.SignalBus)
 				bus.emit(opts.signal, label, text)
 			end
-			Metrics.inc("utils.typewriter.completed", 1, "Typewriter completions")
+			Metrics.inc("utils.typewriter.completed", 1)
 		end
 
 		_typewriters[label] = nil
 	end)
 
-	Metrics.inc("utils.typewriter.started", 1, "Typewriter starts")
+	Metrics.inc("utils.typewriter.started", 1)
 	return handle
 end
 
---- Cancel all active typewriters.
 function Utils.Typewriter.cancelAll()
 	for _, h in pairs(_typewriters) do
 		h._active = false
@@ -315,20 +239,8 @@ function Utils.Typewriter.cancelAll()
 	_typewriters = {}
 end
 
---  ═══════════════════════════════════════════
---  COLOR UTILITIES
---  ═══════════════════════════════════════════
-
 Utils.Color = {}
 
---[[
-  Auto-detect the right color property and apply, with optional tween.
-
-  Utils.Color.set(instance, Color3.new(1, 0, 0), {
-    duration = 0.3,
-    property = "BackgroundColor3",  -- override auto-detect
-  })
---]]
 function Utils.Color.set(instance, color, opts)
 	opts = opts or {}
 	local prop = opts.property
@@ -339,7 +251,7 @@ function Utils.Color.set(instance, color, opts)
 		elseif instance:IsA("UIStroke") then
 			prop = "Color"
 		elseif instance:IsA("UIGradient") then
-			prop = "Color"  -- actually a ColorSequence, but accept it
+			prop = "Color"
 		elseif instance:IsA("ImageLabel") or instance:IsA("ImageButton") then
 			prop = "ImageColor3"
 		else
@@ -357,12 +269,10 @@ function Utils.Color.set(instance, color, opts)
 	end
 end
 
---- Lerp between two Color3 values.
 function Utils.Color.lerp(a, b, t)
 	return a:Lerp(b, t)
 end
 
---- Parse a hex string "#RRGGBB" or "RRGGBB" → Color3
 function Utils.Color.fromHex(hex)
 	hex = hex:gsub("^#", "")
 	local r = tonumber(hex:sub(1, 2), 16) / 255
@@ -371,7 +281,6 @@ function Utils.Color.fromHex(hex)
 	return Color3.new(r, g, b)
 end
 
---- Darken / lighten a Color3 by a factor (0 = black, 2 = double brightness).
 function Utils.Color.adjust(color, factor)
 	return Color3.new(
 		math.clamp(color.R * factor, 0, 1),
@@ -380,36 +289,22 @@ function Utils.Color.adjust(color, factor)
 	)
 end
 
---  ═══════════════════════════════════════════
---  DEBRIS (managed lifetime)
---  ═══════════════════════════════════════════
-
 Utils.Debris = {}
 
---[[
-  Utils.Debris.add(instance, lifetime, opts)
-
-  opts = {
-    onExpire = fn(instance),
-    signal   = "ui:debrisExpired",
-    tween    = { goals, opts }   -- fade out before destroy
-  }
---]]
 function Utils.Debris.add(instance, lifetime, opts)
 	opts = opts or {}
 
 	if opts.tween then
-		-- animate out, then destroy
 		task.delay(lifetime - (opts.tween.opts and opts.tween.opts.duration or 0.35), function()
 			if not instance or not instance.Parent then return end
-			local Renderer = require(script.Parent.renderer.Renderer)
+			local Renderer = require(script.Parent.Renderer)
 			local handle = Renderer.animate(instance, opts.tween.goals, opts.tween.opts)
 			handle:andThen(function()
 				if opts.onExpire and instance.Parent then
 					pcall(opts.onExpire, instance)
 				end
 				if opts.signal then
-					local bus = require(script.Parent.signals.SignalBus)
+					local bus = require(script.Parent.SignalBus)
 					bus.emit(opts.signal, instance)
 				end
 				if instance.Parent then instance:Destroy() end
@@ -421,7 +316,7 @@ function Utils.Debris.add(instance, lifetime, opts)
 				pcall(opts.onExpire, instance)
 			end
 			if opts.signal then
-				local bus = require(script.Parent.signals.SignalBus)
+				local bus = require(script.Parent.SignalBus)
 				bus.emit(opts.signal, instance)
 			end
 			if instance and instance.Parent then instance:Destroy() end
@@ -430,7 +325,7 @@ function Utils.Debris.add(instance, lifetime, opts)
 		Debris:AddItem(instance, lifetime)
 	end
 
-	Metrics.inc("utils.debris.scheduled", 1, "Debris instances scheduled")
+	Metrics.inc("utils.debris.scheduled", 1)
 end
 
 return Utils

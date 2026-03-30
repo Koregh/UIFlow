@@ -1,19 +1,17 @@
-local Types   = require(script.Parent.Parent.core.Types)
-local Logger  = require(script.Parent.Parent.logger.Logger)
+local Types   = require(script.Parent.Types)
+local Logger  = require(script.Parent.Logger)
 local HttpSvc = game:GetService("HttpService")
 
 local log = Logger.child("Metrics")
 
 local Metrics = {}
 
---  INTERNAL REGISTRY
-local _registry = {}    -- name → metric table
-local _reporters = {}   -- array of reporter fns: (snapshot) → void
-local _reportInterval = 60  -- seconds between auto-reports (0 = disabled)
+local _registry       = {}
+local _reporters      = {}
+local _reportInterval = 60
 local _reportTimer    = 0
 local _enabled        = true
 
---  HELPERS
 local function uid8()
 	return HttpSvc:GenerateGUID(false):sub(1, 8)
 end
@@ -43,18 +41,18 @@ local function getOrCreate(name, kind, description, tags)
 	elseif kind == Types.MetricKind.GAUGE then
 		m.value = 0
 	elseif kind == Types.MetricKind.HISTOGRAM then
-		m.buckets  = {}  -- { le: number, count: number }
-		m.sum      = 0
-		m.count    = 0
-		m.min      = math.huge
-		m.max      = -math.huge
+		m.buckets = {}
+		m.sum     = 0
+		m.count   = 0
+		m.min     = math.huge
+		m.max     = -math.huge
 	elseif kind == Types.MetricKind.TIMING then
-		m.active   = {}  -- id → startTime
-		m.samples  = {}  -- array of durations (capped)
-		m.sum      = 0
-		m.count    = 0
-		m.min      = math.huge
-		m.max      = -math.huge
+		m.active  = {}
+		m.samples = {}
+		m.sum     = 0
+		m.count   = 0
+		m.min     = math.huge
+		m.max     = -math.huge
 	end
 
 	_registry[name] = m
@@ -62,9 +60,6 @@ local function getOrCreate(name, kind, description, tags)
 	return m
 end
 
---  COUNTER
-
---- Increment a counter by `amount` (default 1).
 function Metrics.inc(name, amount, description, tags)
 	if not _enabled then return end
 	amount = amount or 1
@@ -72,15 +67,11 @@ function Metrics.inc(name, amount, description, tags)
 	m.value = m.value + amount
 end
 
---- Get current counter value.
 function Metrics.getCounter(name)
 	local m = _registry[name]
 	return m and m.value or 0
 end
 
---  GAUGE
-
---- Set a gauge to an absolute value.
 function Metrics.set(name, value, description, tags)
 	if not _enabled then return end
 	local m = getOrCreate(name, Types.MetricKind.GAUGE, description, tags)
@@ -88,7 +79,6 @@ function Metrics.set(name, value, description, tags)
 	m.lastUpdated = now()
 end
 
---- Adjust a gauge by a delta.
 function Metrics.adjust(name, delta, description, tags)
 	if not _enabled then return end
 	local m = getOrCreate(name, Types.MetricKind.GAUGE, description, tags)
@@ -96,32 +86,25 @@ function Metrics.adjust(name, delta, description, tags)
 	m.lastUpdated = now()
 end
 
---- Get current gauge value.
 function Metrics.getGauge(name)
 	local m = _registry[name]
 	return m and m.value or 0
 end
 
---  HISTOGRAM
-
---- Default bucket boundaries (in ms for timing, units for general)
 local DEFAULT_BUCKETS = { 1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000 }
 
---- Record a value in a histogram.
 function Metrics.observe(name, value, description, tags, bucketBoundaries)
 	if not _enabled then return end
 	local m = getOrCreate(name, Types.MetricKind.HISTOGRAM, description, tags)
 
-	-- init buckets lazily
 	if #m.buckets == 0 then
 		local bounds = bucketBoundaries or DEFAULT_BUCKETS
 		for _, le in ipairs(bounds) do
 			m.buckets[#m.buckets + 1] = { le = le, count = 0 }
 		end
-		m.buckets[#m.buckets + 1] = { le = math.huge, count = 0 }  -- +Inf
+		m.buckets[#m.buckets + 1] = { le = math.huge, count = 0 }
 	end
 
-	-- accumulate
 	m.sum   = m.sum + value
 	m.count = m.count + 1
 	m.min   = math.min(m.min, value)
@@ -134,15 +117,13 @@ function Metrics.observe(name, value, description, tags, bucketBoundaries)
 	end
 end
 
---- Compute a percentile from histogram (approximate, linear interp per bucket).
 function Metrics.percentile(name, p)
 	local m = _registry[name]
 	if not m or m.kind ~= Types.MetricKind.HISTOGRAM or m.count == 0 then return nil end
 	local target = p * m.count
-	local prev = { le = 0, count = 0 }
+	local prev   = { le = 0, count = 0 }
 	for _, bucket in ipairs(m.buckets) do
 		if bucket.count >= target then
-			-- linear interpolation within bucket
 			local span  = bucket.le - prev.le
 			local ratio = (target - prev.count) / math.max(1, bucket.count - prev.count)
 			return prev.le + span * ratio
@@ -152,27 +133,23 @@ function Metrics.percentile(name, p)
 	return m.max
 end
 
---  TIMING (high-level stopwatch backed by histogram)
-
---- Start a timing. Returns a stop function.
 function Metrics.startTimer(name, description, tags)
 	if not _enabled then
 		return function() end
 	end
-	local m = getOrCreate(name, Types.MetricKind.TIMING, description, tags)
+	local m     = getOrCreate(name, Types.MetricKind.TIMING, description, tags)
 	local id    = uid8()
 	local start = now()
 	m.active[id] = start
 
 	return function()
-		local elapsed = (now() - start) * 1000  -- ms
+		local elapsed = (now() - start) * 1000
 		m.active[id]  = nil
 		m.sum    = m.sum + elapsed
 		m.count  = m.count + 1
 		m.min    = math.min(m.min, elapsed)
 		m.max    = math.max(m.max, elapsed)
 
-		-- keep last 256 samples
 		local samples = m.samples
 		samples[#samples + 1] = elapsed
 		if #samples > 256 then
@@ -184,7 +161,6 @@ function Metrics.startTimer(name, description, tags)
 	end
 end
 
---- Wrap a function with automatic timing.
 function Metrics.timed(name, fn, description, tags)
 	return function(...)
 		local stop = Metrics.startTimer(name, description, tags)
@@ -195,7 +171,6 @@ function Metrics.timed(name, fn, description, tags)
 	end
 end
 
---- Get timing summary.
 function Metrics.getTimingSummary(name)
 	local m = _registry[name]
 	if not m or (m.kind ~= Types.MetricKind.TIMING and m.kind ~= Types.MetricKind.HISTOGRAM) then
@@ -211,9 +186,6 @@ function Metrics.getTimingSummary(name)
 	}
 end
 
---  SNAPSHOT / EXPORT
-
---- Return a full snapshot of all metrics.
 function Metrics.snapshot()
 	local snap = {
 		timestamp = now(),
@@ -240,12 +212,12 @@ function Metrics.snapshot()
 			entry.p99     = Metrics.percentile(name, 0.99)
 			entry.buckets = m.buckets
 		elseif m.kind == Types.MetricKind.TIMING then
-			entry.count    = m.count
-			entry.sum_ms   = m.sum
-			entry.avg_ms   = m.count > 0 and (m.sum / m.count) or 0
-			entry.min_ms   = m.min == math.huge  and 0 or m.min
-			entry.max_ms   = m.max == -math.huge and 0 or m.max
-			entry.active   = 0
+			entry.count  = m.count
+			entry.sum_ms = m.sum
+			entry.avg_ms = m.count > 0 and (m.sum / m.count) or 0
+			entry.min_ms = m.min == math.huge  and 0 or m.min
+			entry.max_ms = m.max == -math.huge and 0 or m.max
+			entry.active = 0
 			for _ in pairs(m.active) do entry.active = entry.active + 1 end
 		end
 
@@ -254,7 +226,6 @@ function Metrics.snapshot()
 	return snap
 end
 
---- Print a human-readable report to output.
 function Metrics.report()
 	local snap = Metrics.snapshot()
 	print(string.rep("=", 60))
@@ -276,14 +247,11 @@ function Metrics.report()
 	print(string.rep("=", 60))
 end
 
---- Add a reporter. Called periodically or on Metrics.flush().
---- Reporter fn signature: (snapshot) → void
 function Metrics.addReporter(fn)
 	assert(type(fn) == "function", "Metrics.addReporter: fn must be a function")
 	_reporters[#_reporters + 1] = fn
 end
 
---- Immediately push current snapshot to all reporters.
 function Metrics.flush()
 	local snap = Metrics.snapshot()
 	for _, reporter in ipairs(_reporters) do
@@ -291,7 +259,6 @@ function Metrics.flush()
 	end
 end
 
---- Reset a specific metric (or all if name omitted).
 function Metrics.reset(name)
 	if name then
 		_registry[name] = nil
@@ -300,13 +267,10 @@ function Metrics.reset(name)
 	end
 end
 
---- Enable/disable collection entirely.
 function Metrics.setEnabled(v)
 	_enabled = v
 end
 
---  AUTO-REPORT HEARTBEAT  (hook into game RunService in the consumer layer)
---  Exposed as a tick function so the Framework root can call it from RunService.Heartbeat
 function Metrics._tick(dt)
 	if _reportInterval <= 0 then return end
 	_reportTimer = _reportTimer + dt

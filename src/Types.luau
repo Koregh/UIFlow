@@ -1,6 +1,5 @@
 local Types = {}
 
---  COMPONENT LIFECYCLE STATES
 Types.LifecycleState = {
 	IDLE       = "IDLE",
 	MOUNTING   = "MOUNTING",
@@ -11,20 +10,18 @@ Types.LifecycleState = {
 	ERROR      = "ERROR",
 }
 
---  ANIMATION EASING PRESETS
 Types.Easing = {
-	LINEAR   = { style = Enum.EasingStyle.Linear,   dir = Enum.EasingDirection.In    },
-	EASE_IN  = { style = Enum.EasingStyle.Quart,    dir = Enum.EasingDirection.In    },
-	EASE_OUT = { style = Enum.EasingStyle.Quart,    dir = Enum.EasingDirection.Out   },
-	EASE_IO  = { style = Enum.EasingStyle.Quart,    dir = Enum.EasingDirection.InOut },
-	BACK_OUT = { style = Enum.EasingStyle.Back,     dir = Enum.EasingDirection.Out   },
-	ELASTIC  = { style = Enum.EasingStyle.Elastic,  dir = Enum.EasingDirection.Out   },
-	BOUNCE   = { style = Enum.EasingStyle.Bounce,   dir = Enum.EasingDirection.Out   },
-	SINE_IO  = { style = Enum.EasingStyle.Sine,     dir = Enum.EasingDirection.InOut },
-	SPRING   = { style = Enum.EasingStyle.Back,     dir = Enum.EasingDirection.Out   },
+	LINEAR   = { style = Enum.EasingStyle.Linear,  dir = Enum.EasingDirection.In    },
+	EASE_IN  = { style = Enum.EasingStyle.Quart,   dir = Enum.EasingDirection.In    },
+	EASE_OUT = { style = Enum.EasingStyle.Quart,   dir = Enum.EasingDirection.Out   },
+	EASE_IO  = { style = Enum.EasingStyle.Quart,   dir = Enum.EasingDirection.InOut },
+	BACK_OUT = { style = Enum.EasingStyle.Back,    dir = Enum.EasingDirection.Out   },
+	ELASTIC  = { style = Enum.EasingStyle.Elastic, dir = Enum.EasingDirection.Out   },
+	BOUNCE   = { style = Enum.EasingStyle.Bounce,  dir = Enum.EasingDirection.Out   },
+	SINE_IO  = { style = Enum.EasingStyle.Sine,    dir = Enum.EasingDirection.InOut },
+	SPRING   = { style = Enum.EasingStyle.Back,    dir = Enum.EasingDirection.Out   },
 }
 
---  LOG LEVELS  (ordered severity)
 Types.LogLevel = {
 	TRACE = 0,
 	DEBUG = 1,
@@ -43,71 +40,65 @@ Types.LogLevelName = {
 	[5] = "FATAL",
 }
 
---  METRIC KINDS
 Types.MetricKind = {
-	COUNTER   = "COUNTER",    -- monotonically increasing (renders, signal fires)
-	GAUGE     = "GAUGE",      -- point-in-time value (mounted components, active loops)
-	HISTOGRAM = "HISTOGRAM",  -- distribution (tween durations, render times)
-	TIMING    = "TIMING",     -- start/stop stopwatch
+	COUNTER   = "COUNTER",
+	GAUGE     = "GAUGE",
+	HISTOGRAM = "HISTOGRAM",
+	TIMING    = "TIMING",
 }
 
---  SIGNAL SUBSCRIPTION CONTRACT
--- { Disconnect: () → void, id: string }
-
---  TWEEN HANDLE CONTRACT
--- { cancel: () → void, andThen: (fn) → self, tween: Tween }
-
---  COMPONENT CONTRACT
---[[
-  {
-    id         : string,
-    frame      : Instance,
-    state      : table,
-    lifecycle  : LifecycleState,
-    setState   : (patch: table) → void,
-    getState   : () → table,
-    unmount    : () → void,
-    forceUpdate: () → void,
-  }
---]]
-
---  EFFECT RECORD CONTRACT
---[[
-  {
-    deps    : table | nil,
-    cleanup : () → void | nil,
-    lastDeps: table | nil,
-  }
---]]
-
---  OPEN / CLOSE OPTS CONTRACT
---[[
-  {
-    duration    : number?,
-    style       : Enum.EasingStyle?,
-    direction   : Enum.EasingDirection?,
-    delay       : number?,
-    fromSize    : UDim2?,
-    toSize      : UDim2?,
-    fromPos     : UDim2?,
-    toPos       : UDim2?,
-    fade        : boolean?,  -- default true
-    fadeFrom    : number?,
-    fadeTo      : number?,
-    onComplete  : (Instance) → void?,
-    signal      : string?,
-  }
---]]
-
---  TYPEWRITER HANDLE CONTRACT
---[[
-  {
-    skip    : () → void,
-    cancel  : () → void,
-    pause   : () → void,
-    resume  : () → void,
-    isDone  : () → boolean,
-  }
---]]
-
 return Types
+
+-- Binding type marker (used by reconciler to detect binding props)
+Types.BINDING_MARKER = "UIFlow_Binding"
+
+-- Component options contract (v3)
+--[[
+  Component.new(frame, renderFn, opts)
+
+  opts = {
+    initialState  = table,
+    name          = string,
+    ref           = { current = any },   -- forwardRef target
+    errorBoundary = Component,
+    onMount       = fn(comp),
+    onUnmount     = fn(comp),
+    onError       = fn(err, comp),
+  }
+
+  renderFn(state, api) → patch
+  renderFn(state, ref, api) → patch   (when wrapped with Memo.forwardRef)
+
+  api = {
+    setState(patch),
+    getState() → table,
+    useEffect(fn, deps),
+    useMemo(fn, deps),
+    useRef(initial) → { current },
+    useBinding(initial) → (Binding, updater),
+    useContext(ctx) → value,
+    provideContext(ctx, value) → cleanup,
+    emit(signal, ...),
+    on(signal, callback) → handle,
+  }
+
+  Patch table supports:
+    [Instance] = {
+      -- plain props:
+      Text = "hello",
+      Size = UDim2.new(...),
+
+      -- animation meta:
+      _duration   = 0.3,
+      _easing     = Types.Easing.BACK_OUT,
+      _delay      = 0,
+      _onComplete = fn,
+
+      -- event/change markers:
+      [Event.MouseButton1Click] = function(rbx, ...) end,
+      [Change.Text]             = function(rbx) end,
+
+      -- binding links (zero re-render updates):
+      Size = myBinding,
+    }
+--]]

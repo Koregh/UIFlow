@@ -1,14 +1,12 @@
-local Types   = require(script.Parent.Parent.core.Types)
+local Types   = require(script.Parent.Types)
 local HttpSvc = game:GetService("HttpService")
 
 local Logger = {}
 Logger.__index = Logger
 
---  DEFAULTS
 local DEFAULT_LEVEL   = Types.LogLevel.DEBUG
-local RING_BUFFER_MAX = 500  -- last N log entries kept in memory
+local RING_BUFFER_MAX = 500
 
---  ANSI-style color tags for Roblox output 
 local LEVEL_PREFIX = {
 	[Types.LogLevel.TRACE] = "[TRACE]",
 	[Types.LogLevel.DEBUG] = "[DEBUG]",
@@ -18,7 +16,6 @@ local LEVEL_PREFIX = {
 	[Types.LogLevel.FATAL] = "[FATAL]",
 }
 
--- Which native Roblox output fn maps to which level
 local LEVEL_OUTPUT = {
 	[Types.LogLevel.TRACE] = print,
 	[Types.LogLevel.DEBUG] = print,
@@ -28,15 +25,13 @@ local LEVEL_OUTPUT = {
 	[Types.LogLevel.FATAL] = error,
 }
 
---  INTERNAL SINGLETON STATE
 local _minLevel   = DEFAULT_LEVEL
-local _tagFilters = {}   -- set of tag strings; empty = allow all
-local _sinks      = {}   -- array of sink fns: (entry) → void
-local _history    = {}   -- ring buffer
+local _tagFilters = {}
+local _sinks      = {}
+local _history    = {}
 local _historyIdx = 0
 local _enabled    = true
 
---  HELPERS
 local function uid8()
 	return HttpSvc:GenerateGUID(false):sub(1, 8)
 end
@@ -66,12 +61,10 @@ local function pushHistory(entry)
 	_history[_historyIdx] = entry
 end
 
---  CORE LOG FUNCTION
 local function log(level, tag, msg, ctx)
 	if not _enabled then return end
 	if level < _minLevel then return end
 
-	-- tag filter: if any filter set, tag must be in it
 	if next(_tagFilters) ~= nil then
 		if not tag or not _tagFilters[tag] then return end
 	end
@@ -89,11 +82,9 @@ local function log(level, tag, msg, ctx)
 	pushHistory(entry)
 
 	local formatted = formatMessage(level, tag, msg, ctx)
+	local outputFn  = LEVEL_OUTPUT[level] or print
 
-	-- route to native output
-	local outputFn = LEVEL_OUTPUT[level] or print
 	if level == Types.LogLevel.FATAL then
-		-- non-crashing fatal: use error but pcall-safe for sink delivery
 		pcall(function()
 			for _, sink in ipairs(_sinks) do
 				pcall(sink, entry)
@@ -105,13 +96,11 @@ local function log(level, tag, msg, ctx)
 
 	outputFn("[UIFramework] " .. formatted)
 
-	-- dispatch to all registered sinks
 	for _, sink in ipairs(_sinks) do
-		pcall(sink, entry)  -- isolated: a bad sink never kills the logger
+		pcall(sink, entry)
 	end
 end
 
---- Set minimum log level. Entries below this are silently dropped.
 function Logger.setLevel(level)
 	assert(type(level) == "number", "Logger.setLevel: level must be a number from Types.LogLevel")
 	_minLevel = level
@@ -121,26 +110,20 @@ function Logger.getLevel()
 	return _minLevel
 end
 
---- Add a tag to the allowlist. If any tags are allowed, only those pass.
 function Logger.allowTag(tag)
 	_tagFilters[tag] = true
 end
 
---- Remove a tag from the allowlist.
 function Logger.denyTag(tag)
 	_tagFilters[tag] = nil
 end
 
---- Clear all tag filters (allow everything).
 function Logger.clearTagFilters()
 	_tagFilters = {}
 end
 
---- Register a sink function. Receives every log entry table.
---- Returns a handle with :remove()
 function Logger.addSink(fn)
 	assert(type(fn) == "function", "Logger.addSink: sink must be a function")
-	local sink = { fn = fn, active = true }
 	_sinks[#_sinks + 1] = fn
 	return {
 		remove = function()
@@ -154,16 +137,13 @@ function Logger.addSink(fn)
 	}
 end
 
---- Enable or disable the logger entirely.
 function Logger.setEnabled(v)
 	_enabled = v
 end
 
---- Return a copy of the ring buffer (newest-first).
 function Logger.getHistory(maxEntries)
-	local out = {}
+	local out   = {}
 	local count = math.min(maxEntries or RING_BUFFER_MAX, #_history)
-	-- walk backwards from current index
 	for i = 1, count do
 		local idx = ((_historyIdx - i - 1) % RING_BUFFER_MAX) + 1
 		if _history[idx] then
@@ -173,7 +153,6 @@ function Logger.getHistory(maxEntries)
 	return out
 end
 
---- Filter history by level and/or tag.
 function Logger.queryHistory(opts)
 	opts = opts or {}
 	local all = Logger.getHistory()
@@ -188,8 +167,6 @@ function Logger.queryHistory(opts)
 	return out
 end
 
---- Create a child logger with a fixed tag and optional extra context.
---- Useful for per-module / per-component loggers.
 function Logger.child(tag, baseCtx)
 	local child = {}
 
@@ -210,7 +187,6 @@ function Logger.child(tag, baseCtx)
 	function child.error(msg, ctx) log(Types.LogLevel.ERROR, tag, msg, merged(ctx)) end
 	function child.fatal(msg, ctx) log(Types.LogLevel.FATAL, tag, msg, merged(ctx)) end
 
-	--- Wrap a function: logs entry/exit + duration + errors.
 	function child.trace_call(name, fn)
 		return function(...)
 			child.trace("→ " .. name .. " called")
@@ -230,7 +206,6 @@ function Logger.child(tag, baseCtx)
 	return child
 end
 
--- Root-level convenience methods
 function Logger.trace(msg, ctx) log(Types.LogLevel.TRACE, nil, msg, ctx) end
 function Logger.debug(msg, ctx) log(Types.LogLevel.DEBUG, nil, msg, ctx) end
 function Logger.info (msg, ctx) log(Types.LogLevel.INFO,  nil, msg, ctx) end
