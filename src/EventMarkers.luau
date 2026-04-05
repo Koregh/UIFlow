@@ -1,7 +1,6 @@
 -- EventMarkers: prop-key helpers for attaching to Roblox Instance events
 -- and property-change signals in the component reconciler.
 --
--- Inspired by Roact's Event and Change markers from react-luau.
 --
 -- Usage in a render patch:
 --
