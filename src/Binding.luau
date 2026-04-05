@@ -2,7 +2,6 @@
 -- WITHOUT triggering a full component re-render. Ideal for animations and
 -- high-frequency updates (health bars, position tracking, etc).
 --
--- Inspired by react-luau's ReactBinding.roblox and Roact bindings.
 --
 -- Usage:
 --   local hp, setHp = Binding.create(100)
