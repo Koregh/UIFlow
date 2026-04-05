@@ -1,5 +1,4 @@
 -- Memo: wrap a render function so it only re-renders when props change.
--- Inspired by React.memo and React.PureComponent.
 --
 -- Usage:
 --   local MyComp = Memo.wrap(function(props, api)
