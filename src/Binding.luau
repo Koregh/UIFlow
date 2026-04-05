@@ -2,7 +2,6 @@
 -- WITHOUT triggering a full component re-render. Ideal for animations and
 -- high-frequency updates (health bars, position tracking, etc).
 --
---
 -- Usage:
 --   local hp, setHp = Binding.create(100)
 --
