@@ -1,6 +1,6 @@
 local UI = require(path.to.UIFramework)
 
--- ── 1. Basic component ───────────────────────────────────────────────────────
+--1. Basic component
 local comp = UI.mount(myFrame, function(state, api)
 	api.useEffect(function()
 		print("mounted!")
@@ -19,7 +19,7 @@ comp:setState({ active = true })
 comp:unmount()
 
 
--- ── 2. Event & Change markers ────────────────────────────────────────────────
+-- 2. Event & Change markers
 local Event  = UI.Event
 local Change = UI.Change
 
@@ -38,7 +38,7 @@ UI.mount(frame, function(state, api)
 end, { initialState = { label = "Click me" } })
 
 
--- ── 3. Bindings (zero re-render animations) ──────────────────────────────────
+-- 3. Bindings (zero re-render animations)
 local hp, setHp = UI.createBinding(100)
 
 -- Link directly to a property with an optional transform:
@@ -58,7 +58,7 @@ print(stats:getValue())  -- { hp = 75, mp = 50 }
 disconnect()  -- stop the link
 
 
--- ── 4. Context (pass values without prop drilling) ───────────────────────────
+--4. Context (pass values without prop drilling) 
 local ThemeContext = UI.createContext({ primary = Color3.new(1, 1, 1) })
 
 -- Parent component provides a theme:
@@ -76,7 +76,7 @@ UI.mount(childFrame, function(state, api)
 end)
 
 
--- ── 5. Memo (skip renders when props unchanged) ──────────────────────────────
+--5. Memo (skip renders when props unchanged) 
 local ExpensiveRow = UI.memo(function(state, api)
 	-- Only re-runs when state keys actually change
 	return { [rowFrame] = { Text = state.label } }
@@ -85,7 +85,7 @@ end)
 UI.mount(rowFrame, ExpensiveRow, { initialState = { label = "Row 1" } })
 
 
--- ── 6. forwardRef (expose child API to parent) ───────────────────────────────
+--6. forwardRef (expose child API to parent) 
 local InputComp = UI.forwardRef(function(state, ref, api)
 	if ref then
 		ref.current = {
@@ -105,12 +105,12 @@ UI.mount(frame, InputComp, {
 inputRef.current.focus()   -- call child methods from parent
 
 
--- ── 7. Signals ───────────────────────────────────────────────────────────────
+--7. Signals
 UI.on("player:died", function(player) print(player, "died") end)
 UI.emit("player:died", player)
 
 
--- ── 8. Animations ────────────────────────────────────────────────────────────
+--8. Animations 
 UI.animate(frame, { Size = UDim2.new(1,0,1,0) }, { duration = 0.5 })
 UI.Presets.bounceIn(frame)
 UI.Presets.shake(frame, { strength = 10 })
@@ -121,7 +121,7 @@ local loopId = UI.loop(frame, {
 UI.stopLoop(loopId)
 
 
--- ── 9. Standalone hooks ──────────────────────────────────────────────────────
+-- 9. Standalone hooks 
 local get, set, sub = UI.useState(0)
 set(42)
 sub(function(v) print("changed to", v) end)
