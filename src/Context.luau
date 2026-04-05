@@ -1,4 +1,3 @@
--- Context system inspired by React.createContext / useContext.
 -- Allows passing values through the component tree without prop drilling.
 --
 -- Usage:
